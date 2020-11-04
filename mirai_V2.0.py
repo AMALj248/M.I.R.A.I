@@ -182,7 +182,7 @@ weekly_classifier(stk_df)
 def Input_to_Model(data):
     # Defining the X and Y Values
     print(data.columns)
-    X = data._drop_axis (['Chk_Val', 't', 's'], axis=1)
+    X = data._drop_axis (['Chk_Val', 't', 's' , 'time' ], axis=1)
     print("X = \n", X)
     print(X.columns)
     Y = data.iloc[:,-1]
