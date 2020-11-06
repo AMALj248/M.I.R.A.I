@@ -5,6 +5,7 @@ import datetime
 import requests
 from datetime import timezone , datetime
 import plotly.graph_objects as go
+import math
 from datetime import timedelta
 import time
 import numpy as np
@@ -14,11 +15,15 @@ import plotly
 import plotly.express as px
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score , mean_squared_error , mean_absolute_error
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler,StandardScaler
 import tensorflow as tf
 from tensorflow import keras
 from keras.models import Sequential
 from keras.layers import LSTM , Dense , Dropout
+
+# Importing Necessary .py Files
+from Look_Back_Maker import *
+from Main_Model import *
 
 # Setting the Initial and Final Date
 start_date = datetime(2011 , 10 , 19)
@@ -180,22 +185,85 @@ weekly_classifier(stk_df)
 
 # Model Input Data Transformation function
 def Input_to_Model(data):
-    # Defining the X and Y Values
+    # Dropping the useless values form Data
     print(data.columns)
-    X = data._drop_axis (['Chk_Val', 't', 's' , 'time' ], axis=1)
-    print("X = \n", X)
-    print(X.columns)
-    Y = data.iloc[:,-1]
-    print("Y = \n", Y)
+    mod_data = data._drop_axis(['t', 's' , 'time' ], axis=1)
+    print("mod_data = \n", mod_data)
+    print(mod_data.columns)
 
-    # Defining The MinMax Scaler
-    Scaler1 = MinMaxScaler()
 
-    # Scaling the X value with MinMax Scaling
-    X = Scaler1.fit_transform(X)
-    print("X Scaled = \n", X)
+    #  Defining The MinMaxScaler
+    Scaler1 = StandardScaler()
 
-Input_to_Model(stk_df)
+
+    # Scaling the data with MinMax Scaling
+    # mod_data = Scaler1.fit_transform(mod_data)
+
+
+    # Train/Test Split
+    train_size = int(len(mod_data) * 0.85)
+
+    train = mod_data.iloc[0:train_size,: ]
+    test = mod_data.iloc[train_size:len(mod_data),:]
+    print()
+    print("Train Data\n", train)
+    print("Test Data\n", test)
+    print("Length of Train/Test Split", len(train), len(test))
+
+    # Calling the look_back function
+    trainX, trainY = look_back(train, 10)
+    testX, testY = look_back(test, 10)
+
+
+    print()
+    print("Len of Train X\n", trainX)
+    print("Len of Train Y\n", type(trainY))
+    print("Len of Test X\n", type(testX))
+    print("Len of Test Y\n", type(testY))
+    print(trainX.shape[0])
+    print(trainX.shape[1])
+
+    # Data is in the form: [samples, features]
+    # Converting it into [samples, time steps, features]
+    trainX =  trainX.reshape((trainX.shape[0], 10, trainX.shape[1]))
+    testX =  testX.reshape((testX.shape[0], 10, testX.shape[1]))
+
+    print()
+    #print("Model Data\n")
+    # print("Train X\n", trainX)
+    # print("Train Y\n", trainY)
+    # print("Test X\n",  testX)
+    # print("Test Y\n",  testY)
+
+    # Giving the Input to Model
+    mdl = lstm_model(trainX, trainY, 5, 1)
+
+    # Testing the model Accuracy
+    trainPred = mdl.predict(trainX)
+    testPred = mdl.predict(testX)
+
+    # Inverse Transforming the Predictions
+    # trainPred = Scaler1.inverse_transform(trainPred)
+    # trainY = Scaler1.inverse_transform(trainY)
+    # testPred = Scaler1.inverse_transform(testPred)
+    # testY = Scaler1.inverse_transform(testY)
+
+    # Error Metrics
+    trainScore = math.sqrt(mean_squared_error(trainY[0], trainPred[:, 0]))
+    print('Train Score: %.2f RMSE' % (trainScore))
+
+    testScore = math.sqrt(mean_squared_error(testY[0], testPred[:, 0]))
+    print('Test Score: %.2f RMSE' % (testScore))
+
+
+    return mdl
+
+# Getting the Model
+model = Input_to_Model(stk_df)
+
+
+
+
 
 
 
