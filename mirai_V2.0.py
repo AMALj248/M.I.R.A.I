@@ -2,7 +2,6 @@ import yfinance as yahoo_data
 import finnhub
 import pandas as pd
 import datetime
-import requests
 from datetime import timezone , datetime
 import plotly.graph_objects as go
 import math
@@ -191,13 +190,8 @@ def Input_to_Model(data):
     print("mod_data = \n", mod_data)
     print(mod_data.columns)
 
-
-    #  Defining The MinMaxScaler
-    Scaler1 = StandardScaler()
-
-
     # Scaling the data with MinMax Scaling
-    # mod_data = Scaler1.fit_transform(mod_data)
+    #mod_data = Scaler1.fit_transform(mod_data)
 
 
     # Train/Test Split
@@ -210,24 +204,27 @@ def Input_to_Model(data):
     print("Test Data\n", test)
     print("Length of Train/Test Split", len(train), len(test))
 
+
+
     # Calling the look_back function
     trainX, trainY = look_back(train, 10)
     testX, testY = look_back(test, 10)
-
 
     print()
     print("Len of Train X\n", trainX)
     print("Len of Train Y\n", type(trainY))
     print("Len of Test X\n", type(testX))
     print("Len of Test Y\n", type(testY))
+    print("Train X Shape = ", trainX.shape)
     print(trainX.shape[0])
     print(trainX.shape[1])
 
-    # Data is in the form: [samples, features]
-    # Converting it into [samples, time steps, features]
-    trainX =  trainX.reshape((trainX.shape[0], 10, trainX.shape[1]))
-    testX =  testX.reshape((testX.shape[0], 10, testX.shape[1]))
 
+    # Data is in the form: [samples, features]
+    # Converting it into [rows, time steps, features]
+    #trainX =  trainX.reshape(trainX.shape[0], trainX.shape[1],-1 )
+    #testX =  testX.reshape(testX.shape[0], testX.shape[1],-1 )
+    #print("Train X Shape = ", trainX.shape)
     print()
     #print("Model Data\n")
     # print("Train X\n", trainX)
@@ -236,11 +233,16 @@ def Input_to_Model(data):
     # print("Test Y\n",  testY)
 
     # Giving the Input to Model
-    mdl = lstm_model(trainX, trainY, 5, 1)
+    mdl = lstm_model(trainX, trainY, 10, 10, 9)
 
     # Testing the model Accuracy
     trainPred = mdl.predict(trainX)
     testPred = mdl.predict(testX)
+
+    # Printing the Model Output
+    print("Train Predict\n", trainPred)
+    print("Test Predict\n", testPred)
+
 
     # Inverse Transforming the Predictions
     # trainPred = Scaler1.inverse_transform(trainPred)
