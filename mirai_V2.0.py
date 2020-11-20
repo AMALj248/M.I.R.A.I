@@ -78,7 +78,7 @@ def mov_avg(sma_window , ema_window , ema_window2 , data) :
 
     # Converting to list
     sma_lst = mv_avg.tolist()
-    sma_data = sma_lst[sma_window - 1:]
+    sma_data = sma_lst[ :]
     sma_val = pd.DataFrame(sma_data)
     print("SMA\n", sma_val)
 
@@ -95,7 +95,9 @@ def mov_avg(sma_window , ema_window , ema_window2 , data) :
     exp_val2 = pd.DataFrame(exp2)
     print(("EMA"+str(ema_window2)), exp_val2)
     print("EMA SIZE \n", exp_val2.shape)
-    print("SMA SIZE \n", exp_val2.shape)
+    print("EMA SIZE \n", exp_val2.shape)
+
+    print(len(sma_val), len(exp_val), len(exp_val2))
 
     # Returning The values
     return sma_val , exp_val , exp_val2
@@ -133,6 +135,9 @@ stk_df['sma_close'] = sma_cls
 stk_df['ema_close1'] = exp_cls
 stk_df['ema_close2'] = exp2_cls
 stk_df['time'] = x_time
+
+# Replacing Starting SMA20 with 0
+stk_df['sma_close'] = stk_df['sma_close'].fillna(0)
 
 
 print("After Appending\n" , stk_df.head(25))
@@ -182,13 +187,19 @@ def weekly_classifier(data) :
 # Calling the weekly_classifier function
 weekly_classifier(stk_df)
 
+# To handle Missing values in Ndarray
+
+
+
 # Model Input Data Transformation function
 def Input_to_Model(data):
     # Dropping the useless values form Data
     print(data.columns)
     mod_data = data._drop_axis(['t', 's' , 'time' ], axis=1)
-    print("mod_data = \n", mod_data)
+    print("mod_data = \n", mod_data.isnull().sum())
     print(mod_data.columns)
+
+    print("KAJSK", mod_data.isnull)
 
     # Scaling the data with MinMax Scaling
     #mod_data = Scaler1.fit_transform(mod_data)
@@ -196,29 +207,44 @@ def Input_to_Model(data):
 
     # Train/Test Split
     train_size = int(len(mod_data) * 0.85)
-
+    print(len(mod_data))
     train = mod_data.iloc[0:train_size,: ]
-    test = mod_data.iloc[train_size:len(mod_data),:]
-    print()
-    print("Train Data\n", train)
-    print("Test Data\n", test)
-    print("Length of Train/Test Split", len(train), len(test))
-
+    test = mod_data.iloc[train_size:len(mod_data),: ]
+    print(train.columns)
+    print("Train Data\n", len(train))
+    print("Test Data\n", len(test))
 
 
     # Calling the look_back function
     trainX, trainY = look_back(train, 10)
     testX, testY = look_back(test, 10)
 
+    for i in range(len(testX)):
+        for j in range(len(testX[i])):
+            print(testX[i][j])
+
+
+    print("Missing values trainX", np.isnan(trainX).sum())
+    print("Missing values trainY", np.isnan(trainY).sum())
+    print("Missing values testX", np.isnan(testX).sum())
+    print("Missing values testY", np.isnan(testY).sum())
+
+
+
     print()
-    print("Len of Train X\n", trainX)
-    print("Len of Train Y\n", type(trainY))
-    print("Len of Test X\n", type(testX))
-    print("Len of Test Y\n", type(testY))
-    print("Train X Shape = ", trainX.shape)
+    print("Len of Train X\n", len(trainX))
+    print("Len of Train Y\n", len(trainY))
+    print("Len of Test X\n", len(testX))
+    print("Len of Test Y\n", len(testY))
+    print("trainX Shape = ", trainX.shape)
+    print("trainY Shape = ", trainY.shape)
+    print("testX Shape = ", testX.shape)
+    print("testY Shape = ", testY.shape)
     print(trainX.shape[0])
     print(trainX.shape[1])
-
+    print()
+    print("testX[0]", testX.shape[0])
+    print("testX[1]", testX.shape[1])
 
     # Data is in the form: [samples, features]
     # Converting it into [rows, time steps, features]
@@ -242,6 +268,13 @@ def Input_to_Model(data):
     # Printing the Model Output
     print("Train Predict\n", trainPred)
     print("Test Predict\n", testPred)
+    print()
+    print("Missing values TestX", np.isnan(testX).sum())
+    print("Missing values Test Pred", np.isnan(testPred).sum())
+    print("Missing values Train Pred", np.isnan(trainPred).sum())
+    print("Missing values Train", np.isnan(trainX).sum())
+
+
 
 
     # Inverse Transforming the Predictions

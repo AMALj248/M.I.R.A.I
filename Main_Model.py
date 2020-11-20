@@ -15,7 +15,7 @@ def lstm_model(x_val, y_val, epochs_num, look_back, num_features):
     # Sequential LSTM Model
     model = Sequential()
     model.add(LSTM(40, input_shape=(look_back, num_features )))
-    model.add(Dense(1))
+    model.add(Dense(1 , activation='sigmoid'))
     model.compile(loss='mean_squared_error', optimizer='adam')
     model.fit(x_val, y_val, epochs=epochs_num, batch_size=1, verbose=2)
 
