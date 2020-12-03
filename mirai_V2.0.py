@@ -52,11 +52,14 @@ print(prf)
 norm_nm = prf['name']
 print(norm_nm)
 
-# Conbverting Unix Timestamp to Normal Date
+# Converting Unix Timestamp to Normal Date
 x_time=[]
+# For 1 to 30-31 month cycles
+x_month=[]
 for i in res['t'] :
     x=datetime.fromtimestamp(i).strftime('%Y-%m-%d')
     x=datetime.strptime(x , '%Y-%m-%d')
+    x_month.append(x.day)
     x_time.append(x)
 # Setting the Start and End Date
 start_date_normal = min(x_time)
@@ -69,40 +72,8 @@ stk_df = pd.DataFrame(res)
 print("Null Value Check \n" , stk_df.isna().sum())
 print("DataFrame = \n" , stk_df.head(25))
 
-# Making a Moving Average Function
-def mov_avg(sma_window , ema_window , ema_window2 , data) :
-    # Creating a Simple Moving Averages
-    close_val = data['c']
-    windows = close_val.rolling(sma_window)
-    mv_avg = windows.mean()
 
-    # Converting to list
-    sma_lst = mv_avg.tolist()
-    sma_data = sma_lst[ :]
-    sma_val = pd.DataFrame(sma_data)
-    print("SMA\n", sma_val)
-
-    # Creating the EMA 1
-    exp = close_val.ewm(span= ema_window ).mean()
-    exp_val=pd.DataFrame(exp)
-    print("EMA"+str(ema_window) , exp_val)
-    print("EMA SIZE \n" , exp_val.shape)
-    print("SMA SIZE \n", sma_val.shape)
-    print("Total Size\n" , stk_df['c'].shape)
-
-    # Creating the EMA 2
-    exp2 = close_val.ewm(span=ema_window2).mean()
-    exp_val2 = pd.DataFrame(exp2)
-    print(("EMA"+str(ema_window2)), exp_val2)
-    print("EMA SIZE \n", exp_val2.shape)
-    print("EMA SIZE \n", exp_val2.shape)
-
-    print(len(sma_val), len(exp_val), len(exp_val2))
-
-    # Returning The values
-    return sma_val , exp_val , exp_val2
-
-
+# Plotting function
 def plots(data) :
     # Plotting the candlestick
     fig = go.Figure(data = [go.Candlestick( x=x_time,
@@ -110,9 +81,9 @@ def plots(data) :
                     low = data['l'] , close=data['c'] , name=(cmpny+str(' Prices')) )])
 
     # Plotting the EMA & SMA
-    fig.add_trace(go.Scatter(x=stk_df['time'], y=stk_df['sma_close'], text='SMA', name=('SMA' + str(100))))
-    fig.add_trace(go.Scatter(x=stk_df['time'], y=stk_df['ema_close1'], text='EMA', name=('EMA' + str(50))))
-    fig.add_trace(go.Scatter(x=stk_df['time'], y=stk_df['ema_close2'], text='EMA', name=('EMA' + str(200))))
+    fig.add_trace(go.Scatter(x=stk_df['time'], y=stk_df['sma_close'], text='SMA_C', name=('SMA_C' + str(120))))
+    fig.add_trace(go.Scatter(x=stk_df['time'], y=stk_df['ema_open'], text='EMA_O', name=('EMA_O' + str(30))))
+    fig.add_trace(go.Scatter(x=stk_df['time'], y=stk_df['ema_close'], text='EMA_C', name=('EMA_C' + str(15))))
     fig.update_layout(title_text='Moving Averages')
     fig.update_layout(title_text=(str(norm_nm)))
     #fig.show()
@@ -123,37 +94,84 @@ def plots(data) :
     #fig.show()
 
 
-# Taking the user input for windows for SMA & EMA
-# sma_win = int(input('Enter The Window Size for SMA\n'))
-# ema_win = int(input('Enter The Window Size for EMA\n'))
-# Calling the Moving Funtion
+# Making a Moving Average Function
 
-sma_cls, exp_cls ,exp2_cls = mov_avg(20,50,200,stk_df)
+def mov_avg (sma_win_c ,sma_win_o,  ema_win_c, ema_win_o, data):
 
-# Appending the values to Dataframe Columns
-stk_df['sma_close'] = sma_cls
-stk_df['ema_close1'] = exp_cls
-stk_df['ema_close2'] = exp2_cls
-stk_df['time'] = x_time
+    ################################ SMA ################################
 
-# Replacing Starting SMA20 with 0
+    # Creating a Simple Moving Averages for Opening
+    open_val = data['o']
+    windows1 = open_val.rolling(sma_win_o)
+    mv_avg1 = windows1.mean()
+
+    # Converting to list
+    sma_lst1 = mv_avg1.tolist()
+    sma_data1 = sma_lst1[:]
+    sma_val1 = pd.DataFrame(sma_data1)
+    print("SMA Opening \n", sma_val1)
+
+    # Creating a Simple Moving Averages for Closing
+    close_val = data['c']
+    windows = close_val.rolling(sma_win_c)
+    mv_avg = windows.mean()
+
+    # Converting to list
+    sma_lst = mv_avg.tolist()
+    sma_data = sma_lst[ :]
+    sma_val = pd.DataFrame(sma_data)
+    print("SMA Closing \n", sma_val)
+
+    ####################################### EMA #######################################
+
+    # Creating the EMA 1
+    exp = open_val.ewm(span= ema_win_o).mean()
+    exp_val=pd.DataFrame(exp)
+    print("EMA Opening"+str(ema_win_o) , exp_val)
+    print("EMA SIZE \n" , exp_val.shape)
+
+
+    # Creating the EMA 2
+    exp2 = close_val.ewm(span=ema_win_c).mean()
+    exp_val2 = pd.DataFrame(exp2)
+    print(("EMA Closing"+str(ema_win_c)), exp_val2)
+    print("EMA SIZE \n", exp_val2.shape)
+
+    print(len(sma_val), len(exp_val), len(exp_val2), len(sma_val1))
+
+    # Returning The values
+    return sma_val1, sma_val , exp_val , exp_val2
+
+
+
+# Calling the Moving Function
+
+sml_o,sma_c, exp_o ,exp_c = mov_avg(120, 120, 15, 30, stk_df)
+
+# Appending the values to DataFrame Columns
+stk_df['sma_open'] = sml_o
+stk_df['sma_close'] = sma_c
+stk_df['ema_open'] = exp_o
+stk_df['ema_close'] = exp_c
+stk_df['time'] = x_month
+
+# Replacing Starting SMA with 0
+stk_df['sma_open'] = stk_df['sma_open'].fillna(0)
 stk_df['sma_close'] = stk_df['sma_close'].fillna(0)
 
-
-print("After Appending\n" , stk_df.head(25))
-print("Columns\n" , stk_df.columns)
-print(stk_df['c'])
 
 # Calling the Plots Function
 plots(stk_df)
 
+print(stk_df)
+
 # Making a function to classify Up & Downs per week
 def weekly_classifier(data) :
+
     print("Start Date" , start_date_normal)
     print("End Date" , end_date_normal)
     cmp_data = data
     # Calculating the number of Weeks to process
-
     total_weeks = end_date_normal - start_date_normal
     print("Total Weeks\n" , (total_weeks.days/7))
 
@@ -167,22 +185,25 @@ def weekly_classifier(data) :
     #print("EMA SIZE \n", ema7_val.shape)
     #print("EMA SIZE \n", ema7_val.shape)
     cmp_data['EMA7'] = ema7_val
-
+    
+    print("Data Inside Chk_Val function\n", data.head(20))
 
     # Logic
     chk_lst=[]
-    for row  in cmp_data.itertuples():
-
+    for row in data.itertuples():
          # Bullish Market
-        if row.c >= row.EMA7:
+        if (row.c >= row.o):
             chk_lst.append(1)
         # Bearish Market
-        else :
-            chk_lst.append(-1)
+        if  (row.c < row.o):
+            chk_lst.append(0)
+
 
     cmp_data['Chk_Val'] = chk_lst
+
+
     print("Comparison Data\n", cmp_data.tail(25))
-    print("Frequency of -1" , chk_lst.count(-1))
+    print("Frequency of -1" , chk_lst.count(0))
     print("Frequency of +1", chk_lst.count(1))
 # Calling the weekly_classifier function
 weekly_classifier(stk_df)
@@ -193,44 +214,36 @@ weekly_classifier(stk_df)
 
 # Model Input Data Transformation function
 def Input_to_Model(data):
+
     # Dropping the useless values form Data
     print(data.columns)
-    mod_data = data._drop_axis(['t', 's' , 'time' ], axis=1)
-    print("mod_data = \n", mod_data.isnull().sum())
-    print(mod_data.columns)
+    mod_data = data._drop_axis(['l','c', 's' , 't','h','EMA7' ], axis=1)
+    print("mod_data null values = \n", mod_data.isnull().sum())
+    print(type(mod_data))
+    print("mod data", mod_data)
 
-    print("KAJSK", mod_data.isnull)
-
-    # Scaling the data with MinMax Scaling
-    #mod_data = Scaler1.fit_transform(mod_data)
-
-
+    # Scaling the data for every column except target
+    Scaler = MinMaxScaler()
+    mod_data[['time','o','v', 'sma_close','sma_open', 'ema_close', 'ema_open' ]] = Scaler.fit_transform(mod_data[['time','o','v', 'sma_close','sma_open', 'ema_close', 'ema_open' ]])
+    print("mod data\n", mod_data)
     # Train/Test Split
     train_size = int(len(mod_data) * 0.85)
     print(len(mod_data))
     train = mod_data.iloc[0:train_size,: ]
     test = mod_data.iloc[train_size:len(mod_data),: ]
-    print(train.columns)
+    print("train data\n", train)
     print("Train Data\n", len(train))
     print("Test Data\n", len(test))
-
 
     # Calling the look_back function
     trainX, trainY = look_back(train, 10)
     testX, testY = look_back(test, 10)
-
-    for i in range(len(testX)):
-        for j in range(len(testX[i])):
-            print(testX[i][j])
 
 
     print("Missing values trainX", np.isnan(trainX).sum())
     print("Missing values trainY", np.isnan(trainY).sum())
     print("Missing values testX", np.isnan(testX).sum())
     print("Missing values testY", np.isnan(testY).sum())
-
-
-
     print()
     print("Len of Train X\n", len(trainX))
     print("Len of Train Y\n", len(trainY))
@@ -240,65 +253,36 @@ def Input_to_Model(data):
     print("trainY Shape = ", trainY.shape)
     print("testX Shape = ", testX.shape)
     print("testY Shape = ", testY.shape)
-    print(trainX.shape[0])
-    print(trainX.shape[1])
     print()
     print("testX[0]", testX.shape[0])
-    print("testX[1]", testX.shape[1])
+    print("testX[1]", testX.shape[2])
 
-    # Data is in the form: [samples, features]
-    # Converting it into [rows, time steps, features]
-    #trainX =  trainX.reshape(trainX.shape[0], trainX.shape[1],-1 )
-    #testX =  testX.reshape(testX.shape[0], testX.shape[1],-1 )
-    #print("Train X Shape = ", trainX.shape)
-    print()
-    #print("Model Data\n")
-    # print("Train X\n", trainX)
-    # print("Train Y\n", trainY)
-    # print("Test X\n",  testX)
-    # print("Test Y\n",  testY)
+
 
     # Giving the Input to Model
-    mdl = lstm_model(trainX, trainY, 10, 10, 9)
+    mdl = lstm_model(trainX, trainY, 30, 7, testX.shape[2])
 
     # Testing the model Accuracy
     trainPred = mdl.predict(trainX)
     testPred = mdl.predict(testX)
+    # Appending the test & train values to the old data set
 
-    # Printing the Model Output
-    print("Train Predict\n", trainPred)
-    print("Test Predict\n", testPred)
     print()
     print("Missing values TestX", np.isnan(testX).sum())
     print("Missing values Test Pred", np.isnan(testPred).sum())
     print("Missing values Train Pred", np.isnan(trainPred).sum())
     print("Missing values Train", np.isnan(trainX).sum())
 
-
-
-
-    # Inverse Transforming the Predictions
-    # trainPred = Scaler1.inverse_transform(trainPred)
-    # trainY = Scaler1.inverse_transform(trainY)
-    # testPred = Scaler1.inverse_transform(testPred)
-    # testY = Scaler1.inverse_transform(testY)
-
     # Error Metrics
-    trainScore = math.sqrt(mean_squared_error(trainY[0], trainPred[:, 0]))
-    print('Train Score: %.2f RMSE' % (trainScore))
-
-    testScore = math.sqrt(mean_squared_error(testY[0], testPred[:, 0]))
-    print('Test Score: %.2f RMSE' % (testScore))
-
+    print("Predicted Vales\n", testPred)
+    print("Actual Values\n", testY)
+    trainScore = (mean_squared_error(trainY, trainPred))
+    print('Train Error: %.2f MSE' % trainScore)
+    testScore = mean_squared_error(testY, testPred)
+    print('Test Error: %.2f MSE' % testScore)
+    print("R2 Score Test", r2_score(testY, testPred))
 
     return mdl
 
 # Getting the Model
 model = Input_to_Model(stk_df)
-
-
-
-
-
-
-

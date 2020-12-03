@@ -4,7 +4,7 @@ from sklearn.metrics import *
 import tensorflow as tf
 from tensorflow import keras
 from keras.models import Sequential
-from keras.layers import LSTM , Dense , Dropout
+from keras.layers import LSTM , Dense , Dropout, Conv2D
 
 # This is where we define the model
 
@@ -14,9 +14,11 @@ def lstm_model(x_val, y_val, epochs_num, look_back, num_features):
     print("Model Expected Output\n", y_val)
     # Sequential LSTM Model
     model = Sequential()
-    model.add(LSTM(40, input_shape=(look_back, num_features )))
+    model.add(LSTM(120, return_sequences=True,  input_shape=(look_back, num_features )))
+    model.add(LSTM(60, return_sequences=True))
+    model.add(LSTM(60))
     model.add(Dense(1 , activation='sigmoid'))
-    model.compile(loss='mean_squared_error', optimizer='adam')
-    model.fit(x_val, y_val, epochs=epochs_num, batch_size=1, verbose=2)
+    model.compile(loss='binary_crossentropy', optimizer='Nadam')
+    model.fit(x_val, y_val, epochs=epochs_num, batch_size=5, verbose=2)
 
     return model
