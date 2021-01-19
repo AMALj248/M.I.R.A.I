@@ -37,7 +37,7 @@ end_date = int(end_date)
 fin_client = finnhub.Client(api_key='btthr6748v6or4rae7ag')
 
 # Setting Company SYMOBOL
-cmpny = 'BSESN'
+cmpny = 'AAPL'
 
 # Stock candles
 res = fin_client.stock_candles(cmpny, 'D', start_date, end_date)
