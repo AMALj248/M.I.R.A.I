@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
 import math
-from keras.preprocessing.sequence import TimeseriesGenerator
+
+
 def look_back(data, look_back_window) :
     data_X, data_Y = [] , []
     # selecting from i to i+look_back with 1 left

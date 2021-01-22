@@ -1,4 +1,5 @@
 import yfinance as yahoo_data
+import sys
 import finnhub
 import pandas as pd
 import datetime
@@ -19,13 +20,21 @@ import tensorflow as tf
 from tensorflow import keras
 from keras.models import Sequential
 from keras.layers import LSTM, Dense, Dropout
+import optuna
+from optkeras.optkeras import OptKeras
+import keras.backend as K
+
 from Look_Back_Maker import *
-from Main_Model import *
+from Main_Model_v4 import lstm_model
+
 
 # Fixing the Seed Vale for Reproducibility
+
 from numpy.random import seed
 seed(1)
 tf.random.set_seed(1)
+
+print('MIRAI V4')
 
 # Setting the Initial and Final Date
 start_date = datetime(2011, 10, 19)
@@ -42,7 +51,7 @@ end_date = int(end_date)
 fin_client = finnhub.Client(api_key='btthr6748v6or4rae7ag')
 
 # Setting Company Symbol
-cmpny = 'DJX'
+cmpny = 'AAPL'
 
 # Stock candles
 res = fin_client.stock_candles(cmpny, 'D', start_date, end_date)
@@ -146,27 +155,7 @@ def mov_avg(sma_win_o, sma_win_c, ema_win_o, ema_win_c, data):
     return sma_val1, sma_val, exp_val, exp_val2
 
 
-# Calling the Moving Function
 
-sml_o, sma_c, exp_o, exp_c = mov_avg(12, 120, 30, 60, stk_df)
-
-# Appending the values to DataFrame Columns
-stk_df['sma_open'] = sml_o
-stk_df['sma_close'] = sma_c
-stk_df['ema_open'] = exp_o
-stk_df['ema_close'] = exp_c
-
-# Replacing Starting SMA with 0
-stk_df['sma_open'] = stk_df['sma_open'].fillna(0)
-stk_df['sma_close'] = stk_df['sma_close'].fillna(0)
-
-# Calling the Plots Function
-plots(stk_df)
-
-print(stk_df)
-
-# Passing Weekly Number as time
-stk_df['time'] = x_month
 
 # Making a function to classify Up & Downs per week
 def weekly_classifier(data):
@@ -206,11 +195,6 @@ def weekly_classifier(data):
     print("Frequency of -1", chk_lst.count(0))
     print("Frequency of +1", chk_lst.count(1))
 
-
-# Calling the weekly_classifier function
-
-
-weekly_classifier(stk_df)
 
 
 # Function to plot the Predictions
@@ -285,7 +269,7 @@ def Input_to_Model(data):
     print("testX[1]", testX.shape[2])
 
     # Giving the Input to Model
-    mdl = lstm_model(trainX, trainY, 30, look_back_size, testX.shape[2])
+    mdl = lstm_model(trainX, trainY, 5, look_back_size, testX.shape[2])
 
     # Testing the model Accuracy
     trainPred = mdl.predict(trainX)
@@ -314,7 +298,53 @@ def Input_to_Model(data):
     # Plotting the predictions
     plot_2(Scaler_Close.inverse_transform(testPred.reshape(-1,1)), Scaler_Close.inverse_transform(testY.reshape(-1,1)))
 
-    return mdl
+    # Returning The Loss value
+    return mean_squared_error(testY, testPred)
 
-# Getting the Model
-model = Input_to_Model(stk_df)
+
+# Initialize Optuna
+study = optuna.create_study(direction='minimize')
+def objective(trial):
+
+
+    # Clear Backend
+    K.clear_session()
+
+    # Variables
+    sma_o_tr = trial.suggest_int('sma_o_tr',10,90)
+    ema_o_tr = trial.suggest_int('ema_o_tr',10,90)
+
+    print()
+    print(f'Value for SMA_Open = {sma_o_tr} EMA_Open = {ema_o_tr}')
+    # Calling the Moving Function
+    sma_o, sma_c, exp_o, exp_c = mov_avg(sma_o_tr, 120,ema_o_tr, 60, stk_df)
+
+    # Appending the values to DataFrame Columns
+    stk_df['sma_open'] = sma_o
+    stk_df['sma_close'] = sma_c
+    stk_df['ema_open'] = exp_o
+    stk_df['ema_close'] = exp_c
+
+    # Replacing Starting SMA with 0
+    stk_df['sma_open'] = stk_df['sma_open'].fillna(0)
+    stk_df['sma_close'] = stk_df['sma_close'].fillna(0)
+
+    # Calling the Plots Function
+    #plots(stk_df)
+
+
+    # Passing Weekly Number as time
+    stk_df['time'] = x_month
+
+    # Calling the weekly_classifier function
+    weekly_classifier(stk_df)
+
+    # Training the Model
+    score = Input_to_Model(stk_df)
+
+    return score
+
+
+# Running the Training
+
+study.optimize(objective,n_trials=5)
