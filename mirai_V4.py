@@ -23,9 +23,14 @@ from keras.layers import LSTM, Dense, Dropout
 import optuna
 from optkeras.optkeras import OptKeras
 import keras.backend as K
+import nsepy as Nse
+import pandas as pd
+from datetime import timezone, datetime
+from datetime import date
 
 from Look_Back_Maker import *
 from Main_Model_v4 import lstm_model
+from Multi_Ouput_Lookback_Maker import *
 
 
 # Fixing the Seed Vale for Reproducibility
@@ -36,6 +41,9 @@ tf.random.set_seed(1)
 
 print('MIRAI V4')
 
+
+
+
 # Setting the Initial and Final Date
 start_date = datetime(2011, 10, 19)
 end_date = datetime.today()
@@ -45,17 +53,62 @@ end_date = end_date.replace(tzinfo=timezone.utc).timestamp()
 start_date = int(start_date)
 end_date = int(end_date)
 
-# Importing data from finnhub API
+# Setting Company Symbol
+cmpny = 'OEX'
 
+
+# Function to get Indian NSE data
+def get_nse(cmpny):
+    # creating a Nse object
+    # note index is for index stocks
+    nse = Nse.get_history(symbol=cmpny, start=date(2011, 10, 19), end=date(2021, 1, 23))
+    print(nse.head(25))
+
+    # Resetting Date from Index
+    nse.reset_index(inplace=True)
+
+    # Creating a DataFrame for Indian Market
+    col = ['o', 'h', 'l', 'c', 'v', 't']
+    indian_data = pd.DataFrame(columns=col)
+    print(indian_data)
+    indian_data['o'] = nse['Open']
+    indian_data['h'] = nse['High']
+    indian_data['l'] = nse['Low']
+    indian_data['c'] = nse['Close']
+    indian_data['v'] = nse['Volume']
+    indian_data['t'] = nse['Date']
+
+    # Adding a ok value
+    tmp_lst=[]
+    for row in range(len(nse['Date'])):
+        tmp_lst.append('ok')
+    indian_data['s'] = tmp_lst
+
+    # Converting from Timestamp to UNIX Times
+    tmp_lst = []
+    for row in nse.itertuples():
+        unixtime = time.mktime(row.Date.timetuple())
+        tmp_lst.append(unixtime)
+    indian_data['t'] = tmp_lst
+
+    print(f'Original Length {len(nse["Date"])}  After Conversion {len(indian_data["t"])}')
+
+    return indian_data
+
+# Importing data from finnhub API
 # Setup Client
 fin_client = finnhub.Client(api_key='btthr6748v6or4rae7ag')
-
-# Setting Company Symbol
-cmpny = 'AAPL'
 
 # Stock candles
 res = fin_client.stock_candles(cmpny, 'D', start_date, end_date)
 print(res)
+
+# Overriting Values with NSE Values
+cmpny = 'UFLEX'
+res = get_nse(cmpny)
+
+
+
 
 # Getting The Company Profile
 # prf = fin_client.company_profile2(symbol=cmpny)
@@ -81,6 +134,9 @@ stk_df = pd.DataFrame(res)
 
 print("Null Value Check \n", stk_df.isna().sum())
 print("DataFrame = \n", stk_df.head(25))
+
+
+print('Data\n', stk_df.head(25))
 
 
 # Plotting function
@@ -217,8 +273,15 @@ def Input_to_Model(data):
 
     # LookBack Window
     look_back_size = 5
+    # Size of Output Window
+    n_steps_out=2
+
+
     # Dropping the useless values form Data
     print(data.columns)
+
+    # Interchanging Close and EMA 7 value
+
     mod_data = data._drop_axis(['sma_close', 'ema_close', 's', 't', 'EMA7'], axis=1)
     print("mod_data null values = \n", mod_data.isnull().sum())
     print(type(mod_data))
@@ -248,8 +311,8 @@ def Input_to_Model(data):
     print("Test Data\n", len(test))
 
     # Calling the look_back function
-    trainX, trainY = look_back(train, look_back_size)
-    testX, testY = look_back(test, look_back_size)
+    trainX, trainY = look_back_multi(train, look_back_size,n_steps_out)
+    testX, testY = look_back_multi(test, look_back_size,n_steps_out)
 
     print("Missing values trainX", np.isnan(trainX).sum())
     print("Missing values trainY", np.isnan(trainY).sum())
@@ -269,7 +332,7 @@ def Input_to_Model(data):
     print("testX[1]", testX.shape[2])
 
     # Giving the Input to Model
-    mdl = lstm_model(trainX, trainY, 5, look_back_size, testX.shape[2])
+    mdl = lstm_model(trainX, trainY, 5, look_back_size, testX.shape[2], n_steps_out)
 
     # Testing the model Accuracy
     trainPred = mdl.predict(trainX)
