@@ -37,14 +37,14 @@ print()
 #Importing data from finnhub API
 
 #Setup Client
-fin_client = finnhub.Client(api_key='btthr6748v6or4rae7ag')
+fin_client = finnhub.Client(api_key='c09706n48v6tm13rt11g')
 
 #Setting Compnay SYMOBOL
-cmpny = 'AAPL'
+cmpny = 'KO'
 
 
 # Stock candles
-res = fin_client.stock_candles(cmpny, 'D',start_date, end_date)
+res = fin_client.stock_candles(cmpny, 'M',start_date, end_date)
 print(res)
 
 #Getting The Company Profile

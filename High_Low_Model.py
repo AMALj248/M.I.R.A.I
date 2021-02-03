@@ -43,8 +43,6 @@ tf.random.set_seed(1)
 print('MIRAI V4')
 
 
-
-
 # Setting the Initial and Final Date
 start_date = datetime(2011, 10, 19)
 end_date = datetime.today()
@@ -55,14 +53,17 @@ start_date = int(start_date)
 end_date = int(end_date)
 
 # Setting Company Symbol
-cmpny = 'AAPL'
+cmpny = 'TSLA'
 
 
 # Function to get Indian NSE data
 def get_nse(cmpny):
     # creating a Nse object
     # note index is for index stocks
-    nse = Nse.get_history(symbol=cmpny, start=date(2011, 10, 19), end=date(2021, 1, 23))
+    end_date = datetime.today()
+    end_date = date(end_date.year, end_date.month, end_date.day)
+    print(end_date)
+    nse = Nse.get_history(symbol=cmpny, start=date(2011, 10, 19), end=end_date)
     print(nse.head(25))
 
     # Resetting Date from Index
@@ -105,8 +106,8 @@ res = fin_client.stock_candles(cmpny, 'D', start_date, end_date)
 print(res)
 
 # Overwriting Values with NSE Values
-#cmpny = 'UFLEX'
-#res = get_nse(cmpny)
+cmpny = 'UFLEX'
+res = get_nse(cmpny)
 
 
 
@@ -136,8 +137,6 @@ stk_df = pd.DataFrame(res)
 print("Null Value Check \n", stk_df.isna().sum())
 print("DataFrame = \n", stk_df.head(25))
 
-
-print('Data\n', stk_df.head(25))
 
 
 # Plotting function
@@ -256,6 +255,7 @@ def weekly_classifier(data):
 def buy_sell(col1, col2):
 
     cmp_lst = []
+    print('Here\n', col1)
     for i in range(0, len(col1)):
         if col1[i] > col2[i]:
             cmp_lst.append(1)
@@ -283,9 +283,9 @@ def plot_2(pred, real):
 def Input_to_Model(data, trail_inp):
 
     # LookBack Window
-    look_back_size = 5
+    look_back_size = 3
     # Size of Output Window
-    n_steps_out=1
+    n_steps_out=2
 
 
     # Dropping the useless values form Data
@@ -322,8 +322,8 @@ def Input_to_Model(data, trail_inp):
     print("Test Data\n", len(test))
 
     # Calling the look_back function
-    trainX, trainY = look_back(train, look_back_size)
-    testX, testY = look_back(test, look_back_size)
+    trainX, trainY = look_back_multi(train, look_back_size, n_steps_out)
+    testX, testY = look_back_multi(test, look_back_size, n_steps_out)
 
     print("Missing values trainX", np.isnan(trainX).sum())
     print("Missing values trainY", np.isnan(trainY).sum())
@@ -343,7 +343,7 @@ def Input_to_Model(data, trail_inp):
     print("testX[1]", testX.shape[2])
 
     # Giving the Input to Model
-    mdl = lstm_model(trainX, trainY, 5, look_back_size, testX.shape[2], n_steps_out, trail_inp)
+    mdl = lstm_model(trainX, trainY, 15, look_back_size, testX.shape[2], n_steps_out, trail_inp)
 
     # Testing the model Accuracy
     trainPred = mdl.predict(trainX)
@@ -370,7 +370,7 @@ def Input_to_Model(data, trail_inp):
     #print(f'Actual Values \n {Scaler_Close.inverse_transform(testY.reshape(-1,1))}')
 
     # Plotting the predictions
-    plot_2(Scaler_Close.inverse_transform(testPred.reshape(-1,1)), Scaler_Close.inverse_transform(testY.reshape(-1,1)))
+    plot_2(Scaler_Close.inverse_transform(testPred.reshape(-1, 1)), Scaler_Close.inverse_transform(testY.reshape(-1, 1)))
 
     # Returning The Loss value
     return mean_squared_error(testY, testPred)
@@ -378,8 +378,9 @@ def Input_to_Model(data, trail_inp):
 
 # Initialize Optuna
 study = optuna.create_study(direction='minimize')
-def objective(trial):
 
+
+def objective(trial):
 
     # Clear Backend
     K.clear_session()
@@ -404,8 +405,7 @@ def objective(trial):
     stk_df['sma_close'] = stk_df['sma_close'].fillna(0)
 
     # Calling the Plots Function
-    #plots(stk_df)
-
+    # plots(stk_df)
 
     # Passing Weekly Number as time
     stk_df['time'] = x_month
@@ -421,7 +421,7 @@ def objective(trial):
 
 # Running the Training
 
-study.optimize(objective,n_trials=1)
+study.optimize(objective, n_trials=5)
 
 # Opening the best model
 best_model = keras.models.load_model(str(study.best_trial.number)+'_model_.h5')
@@ -468,14 +468,14 @@ class Trader:
     def back_test(self, data):
         print('Running Back Test')
         # LookBack Window
-        look_back_size = 5
+        look_back_size = 3
         # Size of Output Window
-        n_steps_out = 1
+        n_steps_out = 2
 
         # Dropping the useless values form Data
         print(data.columns)
         # Interchanging Close and EMA 7 value
-        mod_data = data._drop_axis(['sma_close', 'ema_close', 's', 't', 'EMA7', 'o', 'time'], axis=1)
+        mod_data = data.drop(['sma_close', 'ema_close', 's', 't', 'EMA7', 'o', 'time'], axis=1)
         print("mod_data null values = \n", mod_data.isnull().sum())
         print(type(mod_data))
         print("mod data", mod_data)
@@ -494,9 +494,13 @@ class Trader:
         # Reorganizing the Column Values
         mod_data = mod_data.reindex(columns=['v', 'l', 'h', 'sma_open', 'ema_open', 'c'])
 
+        # Making a Real Prediction Set
+        real_data = mod_data[len(data)-(look_back_size*2):]
+        print('Real Data Length = ', len(real_data))
+        print(real_data.head())
 
         # Calling the look_back function
-        X_data, Y_data = look_back(mod_data, look_back_size)
+        X_data, Y_data = look_back_multi(mod_data, look_back_size, n_steps_out)
 
         print("Missing values X_data", np.isnan(X_data).sum())
         print("Missing values Y_data", np.isnan(Y_data).sum())
@@ -508,7 +512,6 @@ class Trader:
         print("X_data[0]", X_data.shape[0])
         print("X_data[1]", X_data.shape[2])
 
-
         # Predicting the Values
         X_Pred = self.model.predict(X_data)
 
@@ -516,43 +519,42 @@ class Trader:
         print("Predicted Vales\n", X_Pred)
         print("Actual Values\n", Y_data)
         trainScore = (mean_squared_error(Y_data, X_Pred))
+
+        # Plotting the predictions
+        plot_2(Scaler_Close.inverse_transform(X_Pred.reshape(-1, 1)),
+               Scaler_Close.inverse_transform(Y_data.reshape(-1, 1)))
+        print('Back Test Complete!')
         print('Test Error: %.2f MSE' % trainScore)
         print("R2 Score Test", r2_score(Y_data, X_Pred))
         print()
 
-        # Plotting the Curve
-        # Plotting the predictions
-        plot_2(Scaler_Close.inverse_transform(X_Pred.reshape(-1, 1)),
-               Scaler_Close.inverse_transform(Y_data.reshape(-1, 1)))
+        # Calling the look_back function
+        X_real, Y_real = look_back_multi(real_data, look_back_size, n_steps_out)
+        print(X_real)
+        print(Y_real)
+        X_future = self.model.predict(X_real)
+        print("Predicted Values\n", Scaler_Close.inverse_transform(X_future.reshape(-1, 1)))
+        print("Actual values\n", Scaler_Close.inverse_transform(Y_real.reshape(-1, 1)))
+        print(real_data.head())
 
-        print('Back Test Complete!')
-
-        print('Running Classifier')
-        # Actual Predictions
-        temp_list = []
-        temp_list_2 = []
-
-        data['True'] = buy_sell(data['c'], data['o'])
+        # Making a Final dataframe
+        real_data = real_data[look_back_size-1:]
+        real_data = Scaler.inverse_transform(real_data[['v', 'sma_open', 'ema_open', 'l', 'h']])
+        real_data = pd.DataFrame(real_data,columns=[['v', 'sma_open', 'ema_open', 'l', 'h']])
 
         # Taking values from Prediction
-        for i in range(0, len(Scaler_Close.inverse_transform(X_Pred.reshape(-1, 1)).flatten())):
-            x = Scaler_Close.inverse_transform(X_Pred.reshape(-1, 1)).flatten()[i]
-            temp_list.append(x)
+        real_data['o'] = data['o'][-look_back_size - 1:].values.reshape(-1, 1)
+        real_data['Pred_Close'] = Scaler_Close.inverse_transform(X_future.reshape(-1, 1))
+        real_data['Actual_Close'] = Scaler_Close.inverse_transform(Y_real.reshape(-1, 1))
 
-        temp_list_2 = data['o'][look_back_size-1:]
+        print(f'Final Portfolio\n {real_data.head(10)}')
 
-        # Predicted values
-        temp_list_3 = buy_sell(temp_list , temp_list_2.tolist())
-        print(len(Scaler_Close.inverse_transform(X_Pred.reshape(-1, 1)).flatten()))
-        print(len(temp_list_3))
-        print(len(data['True']))
 
-        # Dropping
-        df = data.iloc[look_back_size:]
-        print(len(data))
 
-     # lookback problem
+
 # Running Back test
+
+
 t = Trader(stk_df, best_model)
 pass_data = t.prep_data(study.best_params['sma_o_tr'], study.best_params['ema_o_tr'])
 t.back_test(pass_data)
