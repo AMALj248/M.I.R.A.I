@@ -106,7 +106,7 @@ res = fin_client.stock_candles(cmpny, 'D', start_date, end_date)
 print(res)
 
 # Overwriting Values with NSE Values
-cmpny = 'UFLEX'
+cmpny = 'HDFCBANK'
 res = get_nse(cmpny)
 
 
@@ -268,15 +268,15 @@ def buy_sell(col1, col2):
 def plot_2(pred, real):
     # Plotting the Fit Curve
     tmp_lst = []
-    for i in range(0, len(pred)):
+    for i in range(len(pred)):
         tmp_lst.append(i)
     plt.plot(tmp_lst, pred, color='black', label='Prediction')
     plt.plot(tmp_lst, real, color='red', label='Actual')
     plt.title(f'{cmpny} Prediction V/S Actual')
     plt.legend()
     plt.show()
-    # print('Predicted\n', pred)
-    # print('Actual\n', real)
+    print('Amallll \n', len(pred))
+    print('Amlll \n', len(tmp_lst))
 
 # Model Input Data Transformation function
 
@@ -293,7 +293,7 @@ def Input_to_Model(data, trail_inp):
 
     # Interchanging Close and EMA 7 value
 
-    mod_data = data._drop_axis(['sma_close', 'ema_close', 's', 't', 'EMA7', 'o', 'time'], axis=1)
+    mod_data = data._drop_axis(['sma_close', 'ema_close', 's', 't', 'EMA7', 'o'], axis=1)
     print("mod_data null values = \n", mod_data.isnull().sum())
     print(type(mod_data))
     print("mod data", mod_data)
@@ -304,13 +304,13 @@ def Input_to_Model(data, trail_inp):
     close_val = mod_data['c']
     close_val = close_val.values.reshape(-1,1)
     mod_data['c'] = Scaler_Close.fit_transform(close_val)
-    mod_data[['v', 'sma_open', 'ema_open', 'l', 'h']] = Scaler.fit_transform(
-       mod_data[['v', 'sma_open', 'ema_open', 'l', 'h']])
+    mod_data[['v', 'sma_open', 'ema_open', 'time','l', 'h']] = Scaler.fit_transform(
+       mod_data[['v', 'sma_open', 'ema_open', 'time', 'l', 'h']])
 
     print("mod data\n", mod_data)
 
     # Reorganizing the Column Values
-    mod_data = mod_data.reindex(columns=['v', 'l', 'h', 'sma_open', 'ema_open', 'c'])
+    mod_data = mod_data.reindex(columns=['v', 'l', 'h','time', 'sma_open', 'ema_open', 'c'])
 
     # Train/Test Split
     train_size = int(len(mod_data) * 0.85)
@@ -386,8 +386,8 @@ def objective(trial):
     K.clear_session()
 
     # Variables
-    sma_o_tr = trial.suggest_int('sma_o_tr',10,90)
-    ema_o_tr = trial.suggest_int('ema_o_tr',10,90)
+    sma_o_tr = trial.suggest_int('sma_o_tr',20,120)
+    ema_o_tr = trial.suggest_int('ema_o_tr',10,50)
 
     print()
     print(f'Value for SMA_Open = {sma_o_tr} EMA_Open = {ema_o_tr}')
@@ -475,7 +475,7 @@ class Trader:
         # Dropping the useless values form Data
         print(data.columns)
         # Interchanging Close and EMA 7 value
-        mod_data = data.drop(['sma_close', 'ema_close', 's', 't', 'EMA7', 'o', 'time'], axis=1)
+        mod_data = data.drop(['sma_close', 'ema_close', 's', 't', 'EMA7', 'o'], axis=1)
         print("mod_data null values = \n", mod_data.isnull().sum())
         print(type(mod_data))
         print("mod data", mod_data)
@@ -486,13 +486,13 @@ class Trader:
         close_val = mod_data['c']
         close_val = close_val.values.reshape(-1, 1)
         mod_data['c'] = Scaler_Close.fit_transform(close_val)
-        mod_data[['v', 'sma_open', 'ema_open', 'l', 'h']] = Scaler.fit_transform(
-            mod_data[['v', 'sma_open', 'ema_open', 'l', 'h']])
+        mod_data[['v', 'sma_open', 'ema_open', 'l', 'h','time']] = Scaler.fit_transform(
+            mod_data[['v', 'sma_open', 'ema_open', 'l', 'h','time']])
 
         print("mod data\n", mod_data)
 
         # Reorganizing the Column Values
-        mod_data = mod_data.reindex(columns=['v', 'l', 'h', 'sma_open', 'ema_open', 'c'])
+        mod_data = mod_data.reindex(columns=['v', 'l', 'h','time', 'sma_open', 'ema_open', 'c'])
 
         # Making a Real Prediction Set
         real_data = mod_data[len(data)-(look_back_size*2):]
@@ -534,26 +534,45 @@ class Trader:
         print(Y_real)
         X_future = self.model.predict(X_real)
         print("Predicted Values\n", Scaler_Close.inverse_transform(X_future.reshape(-1, 1)))
-        print("Actual values\n", Scaler_Close.inverse_transform(Y_real.reshape(-1, 1)))
+        print("Actual values\n", Scaler_Close.inverse_transform(Y_real))
         print(real_data.head())
 
         # Making a Final dataframe
-        real_data = real_data[look_back_size-1:]
-        real_data = Scaler.inverse_transform(real_data[['v', 'sma_open', 'ema_open', 'l', 'h']])
-        real_data = pd.DataFrame(real_data,columns=[['v', 'sma_open', 'ema_open', 'l', 'h']])
+        real_data = real_data[-look_back_size:]
+        real_data = Scaler.inverse_transform(real_data[['v', 'sma_open', 'ema_open', 'l', 'h','time']])
+        real_data = pd.DataFrame(real_data,columns=[['v', 'sma_open', 'ema_open', 'l', 'h','time']])
 
         # Taking values from Prediction
-        real_data['o'] = data['o'][-look_back_size - 1:].values.reshape(-1, 1)
-        real_data['Pred_Close'] = Scaler_Close.inverse_transform(X_future.reshape(-1, 1))
-        real_data['Actual_Close'] = Scaler_Close.inverse_transform(Y_real.reshape(-1, 1))
+        real_data['o'] = data['o'][-look_back_size:].values.reshape(-1, 1)
 
         print(f'Final Portfolio\n {real_data.head(10)}')
 
+        # because of multioutput there is copies of values so removing them
+        temp_1 = Scaler_Close.inverse_transform(Y_real.tolist())
+        print(temp_1)
+        close_act = []
+        for i in range(len(temp_1)):
+            if i == 0:
+                close_act.append(temp_1[i])
+            else:
+                close_act.append(temp_1[i][1:])
+        print(np.array(close_act).ravel())
 
+        temp_2 =  Scaler_Close.inverse_transform(X_future.tolist())
+        print(temp_2)
+        close_pred = []
+        for i in range(len(temp_2)):
+            if i == 0:
+                close_pred.append(temp_2[i])
+            else:
+                close_pred.append(temp_2[i][1:])
+        print(np.array(close_pred).ravel())
 
+        real_data['Pred_Close'] = [item for sublist in close_pred for item in sublist]
+        real_data['Close'] = [item for sublist in close_act for item in sublist]
 
+        print(real_data.head())
 # Running Back test
-
 
 t = Trader(stk_df, best_model)
 pass_data = t.prep_data(study.best_params['sma_o_tr'], study.best_params['ema_o_tr'])
