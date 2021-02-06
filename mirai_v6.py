@@ -30,7 +30,7 @@ from datetime import timezone, datetime
 from datetime import date
 
 from Look_Back_Maker import *
-from Main_Model_v4 import lstm_model
+from Main_Model_v6 import lstm_model
 from Multi_Ouput_Lookback_Maker import *
 
 
@@ -40,11 +40,11 @@ from numpy.random import seed
 seed(1)
 tf.random.set_seed(1)
 
-print('MIRAI V4')
+print('MIRAI V6.0')
 
 
 # Setting the Initial and Final Date
-start_date = datetime(2011, 10, 19)
+start_date = datetime(2011, 1, 1)
 end_date = datetime.today()
 
 start_date = start_date.replace(tzinfo=timezone.utc).timestamp()
@@ -53,7 +53,7 @@ start_date = int(start_date)
 end_date = int(end_date)
 
 # Setting Company Symbol
-cmpny = 'TSLA'
+cmpny = 'AAPL'
 
 
 # Function to get Indian NSE data
@@ -63,7 +63,7 @@ def get_nse(cmpny):
     end_date = datetime.today()
     end_date = date(end_date.year, end_date.month, end_date.day)
     print(end_date)
-    nse = Nse.get_history(symbol=cmpny, start=date(2011, 10, 19), end=end_date)
+    nse = Nse.get_history(symbol=cmpny, start=date(2011, 1, 1), end=end_date)
     print(nse.head(25))
 
     # Resetting Date from Index
@@ -106,7 +106,7 @@ res = fin_client.stock_candles(cmpny, 'D', start_date, end_date)
 print(res)
 
 # Overwriting Values with NSE Values
-cmpny = 'HDFCBANK'
+cmpny = 'UFLEX'
 res = get_nse(cmpny)
 
 
@@ -251,18 +251,6 @@ def weekly_classifier(data):
     print("Frequency of -1", chk_lst.count(0))
     print("Frequency of +1", chk_lst.count(1))
 
-# Function to Classify Buy/Sell
-def buy_sell(col1, col2):
-
-    cmp_lst = []
-    print('Here\n', col1)
-    for i in range(0, len(col1)):
-        if col1[i] > col2[i]:
-            cmp_lst.append(1)
-        else:
-            cmp_lst.append(0)
-    return cmp_lst
-
 
 # Function to plot the Predictions
 def plot_2(pred, real):
@@ -275,15 +263,13 @@ def plot_2(pred, real):
     plt.title(f'{cmpny} Prediction V/S Actual')
     plt.legend()
     plt.show()
-    print('Amallll \n', len(pred))
-    print('Amlll \n', len(tmp_lst))
 
 # Model Input Data Transformation function
 
 def Input_to_Model(data, trail_inp):
 
     # LookBack Window
-    look_back_size = 3
+    look_back_size = 4
     # Size of Output Window
     n_steps_out=2
 
@@ -325,6 +311,10 @@ def Input_to_Model(data, trail_inp):
     trainX, trainY = look_back_multi(train, look_back_size, n_steps_out)
     testX, testY = look_back_multi(test, look_back_size, n_steps_out)
 
+    #  Converting from Samples, time_steps, features to samples, subsequences, timesteps, features
+    n_seq = -1
+    trainX = trainX.reshape(trainX.shape[0], n_seq, look_back_size, n_steps_out)
+    testX = testX.reshape(testX.shape[0], n_seq, look_back_size, n_steps_out)
     print("Missing values trainX", np.isnan(trainX).sum())
     print("Missing values trainY", np.isnan(trainY).sum())
     print("Missing values testX", np.isnan(testX).sum())
@@ -468,7 +458,7 @@ class Trader:
     def back_test(self, data):
         print('Running Back Test')
         # LookBack Window
-        look_back_size = 3
+        look_back_size = 4
         # Size of Output Window
         n_steps_out = 2
 
@@ -494,13 +484,17 @@ class Trader:
         # Reorganizing the Column Values
         mod_data = mod_data.reindex(columns=['v', 'l', 'h','time', 'sma_open', 'ema_open', 'c'])
 
-        # Making a Real Prediction Set
+        # Making a Real Time Prediction Set
         real_data = mod_data[len(data)-(look_back_size*2):]
         print('Real Data Length = ', len(real_data))
         print(real_data.head())
 
         # Calling the look_back function
         X_data, Y_data = look_back_multi(mod_data, look_back_size, n_steps_out)
+
+        n_seq = -1
+        X_data = X_data.reshape(X_data.shape[0], n_seq, look_back_size, n_steps_out)
+
 
         print("Missing values X_data", np.isnan(X_data).sum())
         print("Missing values Y_data", np.isnan(Y_data).sum())
@@ -528,19 +522,24 @@ class Trader:
         print("R2 Score Test", r2_score(Y_data, X_Pred))
         print()
 
+        # Real Time Predictions
+
         # Calling the look_back function
         X_real, Y_real = look_back_multi(real_data, look_back_size, n_steps_out)
+        X_real = X_real.reshape(X_real.shape[0], n_seq, look_back_size, n_steps_out)
         print(X_real)
         print(Y_real)
+
         X_future = self.model.predict(X_real)
+
         print("Predicted Values\n", Scaler_Close.inverse_transform(X_future.reshape(-1, 1)))
         print("Actual values\n", Scaler_Close.inverse_transform(Y_real))
         print(real_data.head())
 
         # Making a Final dataframe
         real_data = real_data[-look_back_size:]
-        real_data = Scaler.inverse_transform(real_data[['v', 'sma_open', 'ema_open', 'l', 'h','time']])
-        real_data = pd.DataFrame(real_data,columns=[['v', 'sma_open', 'ema_open', 'l', 'h','time']])
+        real_data = Scaler.inverse_transform(real_data[['v', 'sma_open', 'ema_open', 'l', 'h', 'time']])
+        real_data = pd.DataFrame(real_data,columns=[['v', 'sma_open', 'ema_open', 'l', 'h', 'time']])
 
         # Taking values from Prediction
         real_data['o'] = data['o'][-look_back_size:].values.reshape(-1, 1)
@@ -549,7 +548,8 @@ class Trader:
 
         # because of multioutput there is copies of values so removing them
         temp_1 = Scaler_Close.inverse_transform(Y_real.tolist())
-        print(temp_1)
+
+        print('Real Values Format ->', temp_1)
         close_act = []
         for i in range(len(temp_1)):
             if i == 0:
@@ -559,7 +559,7 @@ class Trader:
         print(np.array(close_act).ravel())
 
         temp_2 =  Scaler_Close.inverse_transform(X_future.tolist())
-        print(temp_2)
+        print('Predicted Values Format ->', temp_2)
         close_pred = []
         for i in range(len(temp_2)):
             if i == 0:
@@ -571,7 +571,8 @@ class Trader:
         real_data['Pred_Close'] = [item for sublist in close_pred for item in sublist]
         real_data['Close'] = [item for sublist in close_act for item in sublist]
 
-        print(real_data.head())
+        print(real_data.head(25))
+
 # Running Back test
 
 t = Trader(stk_df, best_model)
