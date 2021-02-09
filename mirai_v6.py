@@ -106,8 +106,8 @@ res = fin_client.stock_candles(cmpny, 'D', start_date, end_date)
 print(res)
 
 # Overwriting Values with NSE Values
-cmpny = 'UFLEX'
-res = get_nse(cmpny)
+#cmpny = 'ATUL'
+#res = get_nse(cmpny)
 
 
 
@@ -223,7 +223,7 @@ def weekly_classifier(data):
     print("Total Weeks\n", (total_weeks.days / 7))
 
     # Closing values
-    cls_values = cmp_data['c']
+    cls_values = cmp_data['o']
 
     # Making EMA7
     ema7 = cls_values.ewm(span=7).mean()
@@ -252,6 +252,7 @@ def weekly_classifier(data):
     print("Frequency of +1", chk_lst.count(1))
 
 
+
 # Function to plot the Predictions
 def plot_2(pred, real):
     # Plotting the Fit Curve
@@ -269,7 +270,7 @@ def plot_2(pred, real):
 def Input_to_Model(data, trail_inp):
 
     # LookBack Window
-    look_back_size = 4
+    look_back_size = 3
     # Size of Output Window
     n_steps_out=2
 
@@ -279,7 +280,7 @@ def Input_to_Model(data, trail_inp):
 
     # Interchanging Close and EMA 7 value
 
-    mod_data = data._drop_axis(['sma_close', 'ema_close', 's', 't', 'EMA7', 'o'], axis=1)
+    mod_data = data._drop_axis(['sma_close', 'ema_close', 's', 't', 'EMA7', 'time'], axis=1)
     print("mod_data null values = \n", mod_data.isnull().sum())
     print(type(mod_data))
     print("mod data", mod_data)
@@ -290,19 +291,20 @@ def Input_to_Model(data, trail_inp):
     close_val = mod_data['c']
     close_val = close_val.values.reshape(-1,1)
     mod_data['c'] = Scaler_Close.fit_transform(close_val)
-    mod_data[['v', 'sma_open', 'ema_open', 'time','l', 'h']] = Scaler.fit_transform(
-       mod_data[['v', 'sma_open', 'ema_open', 'time', 'l', 'h']])
+    mod_data[['v', 'sma_open', 'ema_open','l','o', 'h']] = Scaler.fit_transform(
+       mod_data[['v', 'sma_open', 'ema_open', 'l','o', 'h']])
 
     print("mod data\n", mod_data)
 
     # Reorganizing the Column Values
-    mod_data = mod_data.reindex(columns=['v', 'l', 'h','time', 'sma_open', 'ema_open', 'c'])
+    mod_data = mod_data.reindex(columns=['v', 'l', 'h','o', 'sma_open', 'ema_open', 'c'])
 
     # Train/Test Split
     train_size = int(len(mod_data) * 0.85)
     print(len(mod_data))
     train = mod_data.iloc[0:train_size, :]
-    test = mod_data.iloc[train_size:len(mod_data), :]
+    test = mod_data.iloc[train_size
+                         :len(mod_data), :]
     print("train data\n", train)
     print("Train Data\n", len(train))
     print("Test Data\n", len(test))
@@ -310,8 +312,9 @@ def Input_to_Model(data, trail_inp):
     # Calling the look_back function
     trainX, trainY = look_back_multi(train, look_back_size, n_steps_out)
     testX, testY = look_back_multi(test, look_back_size, n_steps_out)
+    print(f'due chk this out  {trainX.shape}')
 
-    #  Converting from Samples, time_steps, features to samples, subsequences, timesteps, features
+    #  Converting from Samples, time_steps, features TO Samples, subsequences, timesteps, features
     n_seq = -1
     trainX = trainX.reshape(trainX.shape[0], n_seq, look_back_size, n_steps_out)
     testX = testX.reshape(testX.shape[0], n_seq, look_back_size, n_steps_out)
@@ -330,10 +333,10 @@ def Input_to_Model(data, trail_inp):
     print("testY Shape = ", testY.shape)
     print()
     print("testX[0]", testX.shape[0])
-    print("testX[1]", testX.shape[2])
+    print("testX[2]", testX.shape[2])
 
     # Giving the Input to Model
-    mdl = lstm_model(trainX, trainY, 15, look_back_size, testX.shape[2], n_steps_out, trail_inp)
+    mdl = lstm_model(trainX, trainY, 100, look_back_size, testX.shape[2], n_steps_out, trail_inp)
 
     # Testing the model Accuracy
     trainPred = mdl.predict(trainX)
@@ -414,7 +417,11 @@ def objective(trial):
 study.optimize(objective, n_trials=5)
 
 # Opening the best model
-best_model = keras.models.load_model(str(study.best_trial.number)+'_model_.h5')
+from Main_Model_v6 import gelu
+customObjects = {
+    'gelu': gelu
+}
+best_model = keras.models.load_model(str(study.best_trial.number)+'_model_.h5', custom_objects = customObjects)
 
 
 # Trading Script
@@ -458,14 +465,14 @@ class Trader:
     def back_test(self, data):
         print('Running Back Test')
         # LookBack Window
-        look_back_size = 4
+        look_back_size = 3
         # Size of Output Window
         n_steps_out = 2
 
         # Dropping the useless values form Data
         print(data.columns)
         # Interchanging Close and EMA 7 value
-        mod_data = data.drop(['sma_close', 'ema_close', 's', 't', 'EMA7', 'o'], axis=1)
+        mod_data = data.drop(['sma_close', 'ema_close', 's', 't', 'EMA7', 'time'], axis=1)
         print("mod_data null values = \n", mod_data.isnull().sum())
         print(type(mod_data))
         print("mod data", mod_data)
@@ -476,13 +483,13 @@ class Trader:
         close_val = mod_data['c']
         close_val = close_val.values.reshape(-1, 1)
         mod_data['c'] = Scaler_Close.fit_transform(close_val)
-        mod_data[['v', 'sma_open', 'ema_open', 'l', 'h','time']] = Scaler.fit_transform(
-            mod_data[['v', 'sma_open', 'ema_open', 'l', 'h','time']])
+        mod_data[['v', 'sma_open', 'ema_open','l','o', 'h']] = Scaler.fit_transform(
+            mod_data[['v', 'sma_open', 'ema_open','l','o', 'h']])
 
         print("mod data\n", mod_data)
 
         # Reorganizing the Column Values
-        mod_data = mod_data.reindex(columns=['v', 'l', 'h','time', 'sma_open', 'ema_open', 'c'])
+        mod_data = mod_data.reindex(columns=['v', 'l', 'h','o', 'sma_open', 'ema_open', 'c'])
 
         # Making a Real Time Prediction Set
         real_data = mod_data[len(data)-(look_back_size*2):]
@@ -527,36 +534,34 @@ class Trader:
         # Calling the look_back function
         X_real, Y_real = look_back_multi(real_data, look_back_size, n_steps_out)
         X_real = X_real.reshape(X_real.shape[0], n_seq, look_back_size, n_steps_out)
-        print(X_real)
-        print(Y_real)
 
         X_future = self.model.predict(X_real)
 
         print("Predicted Values\n", Scaler_Close.inverse_transform(X_future.reshape(-1, 1)))
         print("Actual values\n", Scaler_Close.inverse_transform(Y_real))
-        print(real_data.head())
 
-        # Making a Final dataframe
+        # Making a Final DataFrame
+        # Selecting the last few days
         real_data = real_data[-look_back_size:]
-        real_data = Scaler.inverse_transform(real_data[['v', 'sma_open', 'ema_open', 'l', 'h', 'time']])
-        real_data = pd.DataFrame(real_data,columns=[['v', 'sma_open', 'ema_open', 'l', 'h', 'time']])
+        real_data = Scaler.inverse_transform(real_data[['v', 'sma_open', 'ema_open','l','o', 'h']])
+        real_data = pd.DataFrame(real_data,columns=[['v', 'sma_open', 'ema_open','l','o', 'h']])
 
         # Taking values from Prediction
         real_data['o'] = data['o'][-look_back_size:].values.reshape(-1, 1)
 
-        print(f'Final Portfolio\n {real_data.head(10)}')
+        # Because of Multi Output there is copies of values so removing them
 
-        # because of multioutput there is copies of values so removing them
         temp_1 = Scaler_Close.inverse_transform(Y_real.tolist())
-
+        print(f'real_data length ->${len(real_data)}')
         print('Real Values Format ->', temp_1)
+
+
         close_act = []
         for i in range(len(temp_1)):
             if i == 0:
                 close_act.append(temp_1[i])
             else:
-                close_act.append(temp_1[i][1:])
-        print(np.array(close_act).ravel())
+                close_act.append(temp_1[i][n_steps_out-1:])
 
         temp_2 =  Scaler_Close.inverse_transform(X_future.tolist())
         print('Predicted Values Format ->', temp_2)
@@ -565,17 +570,20 @@ class Trader:
             if i == 0:
                 close_pred.append(temp_2[i])
             else:
-                close_pred.append(temp_2[i][1:])
-        print(np.array(close_pred).ravel())
+                close_pred.append(temp_2[i][n_steps_out-1:])
+
+        print('Close Actual Length->', len(np.array(close_act).ravel()))
+        print('Close Predicted Length->', len(np.array(close_pred).ravel()))
 
         real_data['Pred_Close'] = [item for sublist in close_pred for item in sublist]
         real_data['Close'] = [item for sublist in close_act for item in sublist]
 
         print(real_data.head(25))
+        print()
+        print('Program Complete')
 
 # Running Back test
 
 t = Trader(stk_df, best_model)
 pass_data = t.prep_data(study.best_params['sma_o_tr'], study.best_params['ema_o_tr'])
 t.back_test(pass_data)
-
