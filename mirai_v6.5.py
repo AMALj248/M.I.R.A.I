@@ -106,8 +106,8 @@ res = fin_client.stock_candles(cmpny, 'D', start_date, end_date)
 print(res)
 
 # Overwriting Values with NSE Values
-cmpny = 'DMART'
-res = get_nse(cmpny)
+#cmpny = 'DMART'
+#res = get_nse(cmpny)
 
 
 
