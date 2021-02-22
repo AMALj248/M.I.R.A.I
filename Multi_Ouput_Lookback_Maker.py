@@ -3,9 +3,9 @@ import numpy as np
 import math
 
 
-def look_back_multi(data, n_steps_in, n_steps_out) :
-    data_X, data_Y = [] , []
-    #
+def look_back_multi(data, n_steps_in, n_steps_out):
+    data_X, data_Y = [], []
+
     print("IN\n", data.shape)
     for i in range(len(data)):
         # find the end of this pattern
@@ -20,5 +20,5 @@ def look_back_multi(data, n_steps_in, n_steps_out) :
         data_X.append(seq_x)
         seq_y = data.iloc[end_ix:out_end_ix, -1]
         data_Y.append(seq_y)
-    return  np.array([np.array(xi) for xi in data_X ]), np.array(data_Y)
+    return np.array([np.array(xi) for xi in data_X]), np.array(data_Y)
 

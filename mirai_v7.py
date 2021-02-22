@@ -39,7 +39,7 @@ from numpy.random import seed
 seed(1)
 tf.random.set_seed(1)
 
-print('MIRAI V6.5')
+print('MIRAI V7.0')
 
 
 # Setting the Initial and Final Date

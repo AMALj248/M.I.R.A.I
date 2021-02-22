@@ -24,14 +24,17 @@ def gelu(x):
         (np.sqrt(2 / np.pi) * (x + 0.044715 * tf.pow(x, 3)))))
     return x * cdf
 
+
+
 #  Long Sort Term Memory Model
 def lstm_model(x_val, y_val, epochs_num, look_back, num_features, n_steps_out, trail_num, cnrtl_val):
 
-    print("Model V6 Running ")
+    print("Model V6.5 Running ")
     print("Model Input\n", x_val)
     print("Model Expected Output\n", y_val)
     print('Received Input Shape ->', x_val.shape[1])
     print('Control Value ', cnrtl_val)
+    print('Steps_per_Epoch', int(x_val.shape[0]/40))
 
     # Early Stopping
     callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=3)
@@ -41,6 +44,7 @@ def lstm_model(x_val, y_val, epochs_num, look_back, num_features, n_steps_out, t
     # opt = keras.optimizers.Nadam(learning_rate=0.004)
     # Sequential LSTM Model
     model = Sequential()
+
 
     model.add(TimeDistributed(Conv1D(filters=cnrtl_val*1, kernel_size=1, activation=gelu), input_shape=(x_val.shape[1], look_back, n_steps_out)))
     if cnrtl_val > 2:
@@ -67,9 +71,9 @@ def lstm_model(x_val, y_val, epochs_num, look_back, num_features, n_steps_out, t
     model.add(LSTM(70, activation=gelu))
     model.add(Dropout(0.2))
     model.add(Dense(70, activation=gelu))
-    model.add(Dense(n_steps_out))
+    model.add(Dense(n_steps_out, activation='linear'))
     model.compile(loss='mean_squared_logarithmic_error', optimizer='Nadam', metrics=['accuracy'])
-    model.fit(x_val, y_val, epochs=epochs_num, steps_per_epoch=x_val.shape[1]/40, batch_size=40, callbacks=[callback, reduce_lr], verbose=1)
+    model.fit(x_val, y_val, epochs=epochs_num, steps_per_epoch=int(x_val.shape[0]/40), batch_size=40, callbacks=[callback, reduce_lr], verbose=1)
 
     # Model Summary
     print(model.summary())
