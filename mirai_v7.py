@@ -101,11 +101,11 @@ def get_nse(cmpny):
 fin_client = finnhub.Client(api_key='c09706n48v6tm13rt11g')
 
 # Stock candles
-res = fin_client.stock_candles(cmpny, 'D', start_date, end_date)
-print(res)
+#res = fin_client.stock_candles(cmpny, 'D', start_date, end_date)
+#print(res)
 
 # Overwriting Values with NSE Values
-cmpny = 'HDFCBANK'
+cmpny = 'UFLEX'
 res = get_nse(cmpny)
 
 
@@ -336,7 +336,8 @@ def Input_to_Model(data, trail_inp, CNTRL_VAL):
     print("testX[2]", testX.shape[2])
 
     # Giving the Input to Model
-    mdl = lstm_model(trainX, trainY, 30, look_back_size, testX.shape[2], n_steps_out, trail_inp, CNTRL_VAL)
+    mdl = lstm_model(trainX, trainY, 4
+                     , look_back_size, testX.shape[2], n_steps_out, trail_inp, CNTRL_VAL)
 
     # Testing the model Accuracy
     trainPred = mdl.predict(trainX)
@@ -416,7 +417,7 @@ def objective(trial):
 
 # Running the Training
 
-study.optimize(objective, n_trials=5)
+study.optimize(objective, n_trials=1)
 
 # Opening the best model
 from Main_Model_v6 import gelu
@@ -552,7 +553,7 @@ class Trader:
         real_data = pd.DataFrame(real_data, columns=[['v', 'sma_open', 'ema_open','l','o', 'h', 'ema_open_2', 'time']])
 
         real_data['o'] = data['o'].iloc[-look_back_size * 6:].values.reshape(-1,1)
-        real_data = real_data[-len(real_data) + look_back_size:]
+        real_data = real_data[-len(real_data) + look_back_size+1:]
 
 
         # Because of Multi Output there is copies of values so removing them
@@ -565,7 +566,7 @@ class Trader:
         close_act = []
         for i in range(len(temp_1)):
             if i == 0:
-                close_act.append(temp_1[i])
+                close_act.append(temp_1[i][0])
             else:
                 close_act.append(temp_1[i][n_steps_out-1:])
 
@@ -574,20 +575,31 @@ class Trader:
         close_pred = []
         for i in range(len(temp_2)):
             if i == 0:
-                close_pred.append(temp_2[i])
+                close_pred.append(temp_2[i][1])
             else:
-                close_pred.append(temp_2[i][n_steps_out-1:])
+                close_pred.append(temp_2[i][-n_steps_out])
 
         print('Close Actual Length->', len(np.array(close_act).ravel()))
         print('Close Predicted Length->', len(np.array(close_pred).ravel()))
+        print(close_pred)
+        print(close_act)
         print('real_Data length', len(real_data))
 
-        real_data['Pred_Close'] = [item for sublist in close_pred for item in sublist]
-        real_data['Close'] = [item for sublist in close_act for item in sublist]
+        real_data['Pred_Close'] =  [float(x) for x in close_pred]
+        real_data['Close'] = [float(x) for x in close_act]
 
         print(real_data.head(25))
         print()
         print('Program Complete')
+        print('Last Data Points\n', real_data.tail(5))
+
+        # Prediction for Today
+        today_data = X_data[len(X_data)-3:]
+        print(today_data)
+        print(type(today_data))
+        print((Scaler_Close.inverse_transform(self.model.predict(today_data)).reshape(-1,1)))
+        print('output Format\n', self.model.predict(today_data))
+        print('output Format\n', self.model.predict(today_data))
 
 # Running Back test
 
