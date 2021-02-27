@@ -43,7 +43,7 @@ tmp_lst = []
 for row in nse.itertuples():
     unixtime = time.mktime(row.Date.timetuple())
     tmp_lst.append(unixtime)
-#indian_data['t'] = tmp_lst
+indian_data['t'] = tmp_lst
 
 print(indian_data.head(25))
 

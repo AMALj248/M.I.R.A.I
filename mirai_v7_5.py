@@ -40,7 +40,7 @@ from numpy.random import seed
 seed(1)
 tf.random.set_seed(1)
 
-print('MIRAI V7.0')
+print('MIRAI V7.5.0')
 
 
 # Function to get Indian NSE data from Yahoo Finance
