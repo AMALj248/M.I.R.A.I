@@ -1,146 +1,177 @@
-import keras
-import keras
-from keras.models import Sequential
-from keras.models import load_model
-from keras.layers import Dense
-from keras.optimizers import Adam
-from keras.activations import sigmoid
-import math
+import pandas as pd
+from datetime import timezone, datetime
+from datetime import date
+import time
 import numpy as np
-import random
-from collections import deque
-import sys
+import yfinance as yf
+import plotly.graph_objects as go
+import matplotlib
+import matplotlib.pyplot as plt
+import scipy
+from scipy.optimize import Bounds
+from scipy.optimize import minimize, minimize_scalar, dual_annealing
 
 
-class Agent:
-    def __init__(self, state_size, is_eval=False, model_name=''):
-        self.state_size = state_size
-        # Actions Buy, Sell, Hold
-        self.action_size = 3
-        self.memory = deque(maxlen=1000)
-        self.inventory = []
-        self.model_name = model_name
-        self.is_eval = is_eval
-        self.gamma = 0.95
-        self.epsilon = 1.0
-        self.epsilon_min = 0.01
-        self.epsilon_decay = 0.995
-        # Loading the Saved model or load inbuilt model
-        self.model = load_model(model_name) if is_eval else self._model()
-        
-    # The Neural Model
-    
-    def _model(self):
-        model = Sequential()
-        model.add(Dense(units=64, input_dim=self.state_size, activation="relu"))
-        model.add(Dense(units=32, activation="relu"))
-        model.add(Dense(units=8, activation="relu"))
-        model.add(Dense(self.action_size, activation="linear"))
-        model.compile(loss="mse", optimizer=Adam(lr=0.001))
-        return model
-    
-    # Action taking Module
-    
-    def act(self, state):
+# Getting the Stock Data
 
-        # Take a random Action
-        if not self.is_eval and random.random()<= self.epsilon:
-            return random.randrange(self.action_size)
-        options = self.model.predict(state)
-        print('Options ->', options)
-        return np.argmax(options[0])   # Choose the best Action
+def get_nse(comp_name):
+    # creating a Nse object
+    # note index is for index stocks
 
-    # Function to reset memory if memory is full
-    def expReplay(self, batch_size):
-        mini_batch = []
-        l = len(self.memory)
+    comp_name = yf.Ticker(comp_name)
 
-        for i in range(l - batch_size + 1, l):
-            mini_batch.append(self.memory[i])
-        
-        for state, action, reward, next_state, done in mini_batch:
-          target = reward
-          if not done:
-              target = reward + self.gamma * np.amax(self.model.predict(next_state)[0])
+    end_date = datetime.today()
+    end_date = date(end_date.year, end_date.month, end_date.day)
 
-          target_f = self.model.predict(state)
-          target_f[0][action] = target
-          self.model.fit(state, target_f, epochs = 1, verbose = 1)
+    # get historical market data
+    recv_data = comp_name.history( start=date(2015, 1, 1), end=end_date, interval='1d')
+    print(recv_data)
 
-        if self.epsilon > self.epsilon_min:
-          self.epsilon *= self.epsilon_decay
+    # Resetting Date from Index
+    recv_data.reset_index(inplace=True)
 
-    def formatPrice(self, n):
-        return ("-Rs." if n < 0 else "Rs.") + "{0:.2f}".format(abs(n))
+    # Creating a DataFrame for Indian Market
+    col = ['o', 'h', 'l', 'c', 'v', 't']
+    stock_data = pd.DataFrame(columns=col)
+    print(stock_data)
+    stock_data['o'] = recv_data['Open']
+    stock_data['h'] = recv_data['High']
+    stock_data['l'] = recv_data['Low']
+    stock_data['c'] = recv_data['Close']
+    stock_data['v'] = recv_data['Volume']
+    stock_data['t'] = recv_data['Date']
 
-    # Function to recieve data
-    def getStockDataVec(self):
-        vec = []
-        lines = open("HDFCBANK.NS.csv", "r").read().splitlines()
-        for line in lines[1:]:
-            #print(line)
-            #print(float(line.split(",")[4]))
-            # Extracting Closing Prices form the CSV
-            vec.append(float(line.split(",")[4]))
-            print(vec)
-        return vec
+    print(stock_data.head(25))
 
-    def sigmoid(self, x):
-        return 1 / (1 + math.exp(-x))
+    print(f'Original Length {len(recv_data["Date"])}  After Conversion {len(stock_data["t"])}')
 
-    def getState(self, data, t, n):
-        d = t - n + 1
-        block = data[d:t + 1] if d >= 0 else -d * [data[0]] + data[0:t + 1]  # pad with t0
-        print('Block->\n', block)
-        res = []
-        for i in range(n - 1):
-            res.append(sigmoid(block[i + 1] - block[i]))
-        return np.array([res])
+    # If Nan Row, Drop the Entire Row
+    stock_data.dropna(inplace=True)
+
+    return stock_data
+
+
+# Getting the Stock Data
+
+cmpny = 'TATASTEEL.NS'
+
+res = get_nse(cmpny)
+
+
+# Function to make Moving Averages
+
+def mov_avg(ema_win_c, ema_win_c_2, data):
+    ################################ SMA ################################
+
+    # Creating a Simple Moving Averages for Opening
+    close_val = data['c']
+
+    ####################################### EMA #######################################
+
+    # Creating the EMA 1
+    exp = close_val.ewm(span=ema_win_c).mean()
+    exp_val = pd.DataFrame(exp)
+    # print("EMA Closing" + str(ema_win_c), exp_val)
+    # print("EMA SIZE \n", exp_val.shape)
+
+    # Creating the EMA 2
+    exp2 = close_val.ewm(span=ema_win_c_2).mean()
+    exp_val2 = pd.DataFrame(exp2)
+    # print(("EMA Closing 2" + str(ema_win_c_2)), exp_val2)
+    # print("EMA SIZE \n", exp_val2.shape)
+
+    # Returning The values
+    return exp_val, exp_val2
 
 
 
+print('After adding EMA\n', res.head(25))
+
+# Function to  Find The Crossover Points
+
+def cross_over(data):
+
+    temp_lst = []
+    for row in data.itertuples():
+        # Bearish Market
+        if row.ema_s <= row.ema_L:
+            temp_lst.append(0)
 
 
-# Calling the model
+        # Bullish Market
+        if row.ema_s > row.ema_L:
+            temp_lst.append(1)
+
+    # print('res len', len(res))
+    # print('tmep_list len', len(temp_lst))
+    res['status'] = temp_lst
 
 
-window_size = 5
-episode_count = 1
-stock_name = 'HDFCBANK'
+def objective_fun(x):
+    x1 = x[0]
+    x2 = x[1]
+    # print('EMA VALUES ')
+    # print(x1, x2)
+    ema_1, ema_2 = mov_avg(x1, x2, res)
+    res['ema_s'] = ema_1
+    res['ema_L'] = ema_2
+
+    # Finding the Crossover Points
+    cross_over(res)
+    res['signal'] = res['status'].diff()
+
+    # Dropping first Nan row in temporary DataFrame
+    cln = res.dropna()
+    # print(cln.head())
+
+    sig_cln = cln[cln['signal'] != 0]
+    sig_cln.reset_index(inplace=True)
+    # Dropping the Index Column
+    del sig_cln['index']
 
 
+    PROFIT = 0
+    sig_trk = []
+    for row in sig_cln.itertuples():
+        sig_trk.append(row.signal)
+        # Sell Preceded by Buy
+        if row.Index != 0 and row.signal == -1 and sig_trk[row.Index-1] == 1:
+            PROFIT += row.c-sig_cln['c'][row.Index-1]
+            #print('PROFIT', PROFIT)
 
-agent = Agent(window_size)
-data = agent.getStockDataVec()
-l = len(data) - 1
-batch_size = 32
-for e in range(episode_count + 1):
-    print("Episode " + str(e) + "/" + str(episode_count))
-    state = agent.getState(data, 0, (window_size+1))
-    total_profit = 0
-    agent.inventory = []
-    for t in range(l):
-        action = agent.act(state)
-        # sit
-        next_state = agent.getState(data, t+1, (window_size + 1))
-        reward = 0
-        if action == 1: # buy
-            agent.inventory.append(data[t])
-            print("Buy: " + agent.formatPrice(data[t]))
-        elif action == 2 and len(agent.inventory) > 0: # sell
-            bought_price = window_size_price = agent.inventory.pop(0)
-            reward = max(data[t] - bought_price, 0)
-            total_profit += data[t] - bought_price
-            print("Sell: " + agent.formatPrice(data[t]) + " | Profit: " + agent.formatPrice(data[t] - bought_price))
-        done = True if t == l - 1 else False
-        agent.memory.append((state, action, reward, next_state, done))
-        state = next_state
-        if done:
-            print("--------------------------------")
-            print("Total Profit: " + agent.formatPrice(total_profit))
-            print("--------------------------------")
-        if len(agent.memory) > batch_size:
-            agent.expReplay(batch_size)
-    if e % 10 == 0:
-        agent.model.save(str(e))
+    #print('PROFIT =',PROFIT )
 
+    return -1 * PROFIT
+
+
+# Defining the Lower and Upper Bounds
+lw = [20, 50]
+up = [40, 125]
+sol = dual_annealing(objective_fun, bounds= list(zip(lw, up)))
+print(sol)
+print('EMA Solution = ', sol.x[0], sol.x[1])
+print('Real Profit = ', objective_fun(sol.x))
+
+
+print()
+
+# # plot close price, short-term and long-term moving averages
+# res['c'].plot(color = 'k', label= 'Close Price')
+# res['ema_s'].plot(color = 'b',label = 'EMA Low')
+# res['ema_L'].plot(color = 'g', label = 'EMA High')
+#
+# # plot ‘buy’ signals
+# plt.plot(res['t'][res['signal'] == 1].index,
+#          res['c'][res['signal'] == 1],
+#          '^', markersize = 15, color = 'g', label = 'buy')
+# # plot ‘sell’ signals
+# plt.plot(res['t'][res['signal'] == -1].index,
+#          res['c'][res['signal']  == -1],
+#          'v', markersize = 15, color = 'r', label = 'sell')
+# plt.ylabel('Price', fontsize = 15 )
+# plt.xlabel('Date', fontsize = 15 )
+# plt.title(str(cmpny), fontsize = 20)
+# plt.legend()
+# plt.grid()
+# plt.show()
+#

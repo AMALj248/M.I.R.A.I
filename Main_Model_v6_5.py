@@ -51,18 +51,20 @@ def lstm_model(x_val, y_val, epochs_num, look_back, train_samples, n_steps_out, 
     if cnrtl_val > 2:
         model.add((Dropout(0.2)))
         model.add(TimeDistributed(Conv1D(filters=cnrtl_val * 2, kernel_size=1, activation=gelu, padding='same')))
+        model.add(TimeDistributed(MaxPooling1D(pool_size=2, padding='same')))
 
     if cnrtl_val > 3:
         model.add((Dropout(0.2)))
         model.add(TimeDistributed(Conv1D(filters=cnrtl_val * 3, kernel_size=1, activation=gelu, padding='same')))
+        model.add(TimeDistributed(MaxPooling1D(pool_size=2,  padding='same')))
 
     if cnrtl_val > 4:
         model.add((Dropout(0.2)))
         model.add(TimeDistributed(Conv1D(filters=cnrtl_val * 4, kernel_size=1, activation=gelu, padding='same')))
         model.add(TimeDistributed(Conv1D(filters=cnrtl_val * 4, kernel_size=1, activation=gelu, padding='same')))
-        model.add(TimeDistributed(MaxPooling1D(pool_size=2)))
+        model.add(TimeDistributed(MaxPooling1D(pool_size=2, padding='same')))
 
-    model.add(TimeDistributed(MaxPooling1D(pool_size=1)))
+    model.add(TimeDistributed(MaxPooling1D(pool_size=2, padding='same')))
     model.add(TimeDistributed(Flatten()))
     model.add(LSTM(128, return_sequences=True, activation=gelu))
     model.add(Dropout(0.2))
@@ -70,12 +72,15 @@ def lstm_model(x_val, y_val, epochs_num, look_back, train_samples, n_steps_out, 
     model.add(Dropout(0.2))
     model.add(LSTM(200, return_sequences=True, activation=gelu))
     model.add(Dropout(0.2))
+    if cnrtl_val > 4:
+        model.add(LSTM(140, return_sequences=True))
+        model.add(Dropout(0.2))
     model.add(LSTM(70, activation=gelu))
     model.add(Dropout(0.2))
     model.add(Dense(70, activation=gelu))
     model.add(Dense(n_steps_out, activation='linear'))
 
-    model.compile(loss='mae', optimizer='Nadam', metrics=['accuracy'])
+    model.compile(loss='mean_squared_logarithmic_error', optimizer='Nadam', metrics=['accuracy'])
     model.fit(x_val, y_val, epochs=epochs_num, steps_per_epoch=int(x_val.shape[0]/40),batch_size=40, callbacks=[callback, reduce_lr], verbose=1)
 
     # Model Summary

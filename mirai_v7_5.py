@@ -1,5 +1,4 @@
 import sys
-import finnhub
 import pandas as pd
 import datetime
 from datetime import timezone, datetime
@@ -10,21 +9,15 @@ import time
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
-import seaborn as sns
 import plotly
 import plotly.express as px
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import tensorflow as tf
 from tensorflow import keras
-from keras.models import Sequential
-from keras.layers import LSTM, Dense, Dropout
 import optuna
 from optkeras.optkeras import OptKeras
 import keras.backend as K
-import nsepy as Nse
-import pandas as pd
 from datetime import timezone, datetime
 from datetime import date
 import yfinance as yf
@@ -43,7 +36,7 @@ tf.random.set_seed(1)
 print('MIRAI V7.5.0')
 
 
-# Function to get Indian NSE data from Yahoo Finance
+# Function to get Indian NSE & Global Market data from Yahoo Finance
 def get_nse(comp_name):
     # creating a Nse object
     # note index is for index stocks
@@ -54,7 +47,7 @@ def get_nse(comp_name):
     end_date = date(end_date.year, end_date.month, end_date.day)
 
     # get historical market data
-    recv_data = comp_name.history( start=date(2011, 1, 1), end=end_date)
+    recv_data = comp_name.history( start=date(2011, 1, 1), end=end_date, interval='1d')
     print(recv_data)
 
     # Resetting Date from Index
@@ -88,12 +81,15 @@ def get_nse(comp_name):
 
     print(f'Original Length {len(recv_data["Date"])}  After Conversion {len(stock_data["t"])}')
 
+    # If Nan Row, Drop the Entire Row
+    stock_data.dropna(inplace=True)
+
     return stock_data
 
 
 # Getting the Stock Data
 
-cmpny = 'AAPL'
+cmpny = 'TITAN.NS'
 
 res = get_nse(cmpny)
 
@@ -120,7 +116,7 @@ print("DataFrame = \n", stk_df.head(25))
 
 
 # Plotting function
-def plots(data):
+def plots(data, eam_val, ema_val2):
 
     print("Plotting the data")
     print(stk_df.head(10))
@@ -133,17 +129,17 @@ def plots(data):
                                          low=data['l'], close=data['c'], name=(cmpny + str(' Prices')))])
 
     # Plotting the EMA & SMA
-    fig.add_trace(go.Scatter(x=data['time'], y=data['sma_close'], text='SMA_C', name=('SMA_C' + str(120))))
-    fig.add_trace(go.Scatter(x=data['time'], y=data['ema_open'], text='EMA_O', name=('EMA_O' + str(30))))
-    fig.update_layout(title_text='Moving Averages')
+    fig.add_trace(go.Scatter(x=data['time'], y=data['ema_open'], text='EMA_O', name=('EMA_O' + str(eam_val))))
+    fig.add_trace(go.Scatter(x=data['time'], y=data['ema_open'], text='EMA_O', name=('EMA_O' + str(ema_val2))))
+    fig.update_layout(title_text='Exponential Moving Averages')
     fig.update_layout(title_text=(str(cmpny)))
     fig.show()
 
 
-    # Plotting the volume of Trade over time
-    fig = go.Figure(go.Scatter(x=x_time, y=stk_df['v'], text='Volume'))
-    fig.update_layout(title_text=('Volume of Trades for ' + str(cmpny)))
-    fig.show()
+    # # Plotting the volume of Trade over time
+    # fig = go.Figure(go.Scatter(x=x_time, y=stk_df['v'], text='Volume'))
+    # fig.update_layout(title_text=('Volume of Trades for ' + str(cmpny)))
+    # fig.show()
 
 
 # Making a Moving Average Function
@@ -319,7 +315,7 @@ def Input_to_Model(data, trail_inp, CNTRL_VAL):
     print("testX[2]", testX.shape[2])
 
     # Giving the Input to Model
-    mdl = lstm_model(trainX, trainY, 1
+    mdl = lstm_model(trainX, trainY, 100
                      , look_back_size, testX.shape[2], n_steps_out, trail_inp, CNTRL_VAL)
 
     # Testing the model Accuracy
@@ -364,8 +360,8 @@ def objective(trial):
 
     # Variables
     sma_o_tr = trial.suggest_int('sma_o_tr',20,200)
-    ema_o_tr = trial.suggest_int('ema_o_tr',10,100)
-    ema_o_2_tr = trial.suggest_int('ema_o_2_tr',5,95)
+    ema_o_tr = trial.suggest_int('ema_o_tr',20,50)
+    ema_o_2_tr = trial.suggest_int('ema_o_2_tr',40,125)
     CNTRL_VAL = trial.suggest_int('CNTRL_VAL', 1,5)
 
     print()
@@ -400,7 +396,7 @@ def objective(trial):
 
 # Running the Training
 
-study.optimize(objective, n_trials=1)
+study.optimize(objective, n_trials=5)
 
 # Opening the best model
 from Main_Model_v6 import gelu
@@ -411,7 +407,6 @@ best_model = keras.models.load_model(str(study.best_trial.number)+'_model_.h5', 
 
 
 # Trading Script
-
 
 class Trader:
     def __init__(self, data, model):
@@ -438,7 +433,7 @@ class Trader:
         stk_df['sma_close'] = stk_df['sma_close'].fillna(0)
 
         # Calling the Plots Function
-        plots(stk_df)
+        plots(stk_df,ema_o_tr,ema_o_2_tr)
 
         # Passing Weekly Number as time
         stk_df['time'] = x_month
